@@ -45,4 +45,19 @@ if is_mysql_installed; then
     start_mysql_service
 fi
 
+DB_NAME="FinalEx"
+
+#create database
+create_database() {
+    echo "Creating database ($DB_NAME)..."
+    echo "CREATE DATABASE $DB_NAME;" | sudo mysql
+
+    if [ $? -eq 0 ]; then
+        echo "Database created successfully."
+    else
+        echo "Failed to create database."
+        exit 1
+    fi
+}
+
 
