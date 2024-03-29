@@ -52,30 +52,43 @@ DATA_FILE="study_performance.csv"
 
 #create database
 create_database() {
-    echo "Creating database ($DB_NAME)..."
-    echo "CREATE DATABASE $DB_NAME;" | sudo mysql
-
-    if [ $? -eq 0 ]; then
-        echo "Database created successfully."
+    echo "Checking if database $DB_NAME exists..."
+    if echo "USE $DB_NAME;" | sudo mysql; then
+        echo "Database $DB_NAME already exists. Continuing with existing database."
     else
-        echo "Failed to create database."
-        exit 1
+        echo "Database $DB_NAME does not exist. Creating database..."
+        echo "CREATE DATABASE $DB_NAME;" | sudo mysql
+
+        if [ $? -eq 0 ]; then
+            echo "Database created successfully."
+        else
+            echo "Failed to create database."
+            exit 1
+        fi
     fi
 }
 
-create table from CSV headers
+#create table from CSV headers
 create_table_from_csv() {
     echo "Creating table ($TABLE_NAME)..."
-    local headers=$(head -1 "$DATA_FILE") #extract the headers with head -1
-    local column_definitions="id VARCHAR(255) AUTO_INCREMENT PRIMARY KEY, " #initialize column_definitions with a new column 'id' (at the original csv there is no primary key column and any identifier for each instance).
-    local column_types=("VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "INT" "INT" "INT") #defined manually the column types according to the csv column
+    
+    #extract the headers with head -1
+    local headers=$(head -1 "$DATA_FILE") 
+    #initialize column_definitions with a new column 'id' (at the original csv there is no primary key column and any identifier for each instance).
+    local column_definitions="id INT AUTO_INCREMENT PRIMARY KEY, " #FIXED BUG: we changed the type from VARCHAR(255) to INT
+    #define manually the column types according to the csv column
+    local column_types=("VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "VARCHAR(255)" "INT" "INT" "INT") 
     local i=0 #initialize a counter for column_types index
 
     IFS=',' read -ra ADDR <<< "$headers" #split by ',' headers' string into array - ADDR
     for col in "${ADDR[@]}"; do #run on ADDR elements (the column names)
-        col=$(echo $col | sed -r 's/\s/_/g') #replace by using sed -r (regex) all the spaces with underscores for SQL compatibility
-        col=$(echo $col | sed -r 's/(.*)/`\1`/g') #wrap the column name with single quote for SQL compatibility
-        column_definitions+="$col ${column_types[i]}, " #concatenate all the formatted column names and their's type into column_definitions
+    
+        #replace by using sed -r (regex) all the spaces with underscores for SQL compatibility
+        col=$(echo $col | sed -r 's/\s/_/g') 
+        #wrap the column name with single quote for SQL compatibility
+        col=$(echo $col | sed -r 's/(.*)/`\1`/g') 
+        #concatenate all the formatted column names and their's type into column_definitions
+        column_definitions+="$col ${column_types[i]}, " 
         ((i++))
     done
 
@@ -91,5 +104,23 @@ create_table_from_csv() {
     fi
 }
 
+#import CSV data into the table
+import_csv_to_table() {
+    #Format the headers for SQL - group with regex all the column names and wrap it with single quotes
+    local headers=$(head -1 "$DATA_FILE" | sed -r 's/([^,]+)/`\1`/g') 
+    echo "Importing data from '$DATA_FILE' to table '$TABLE_NAME'..."
+    
+    #while loop that runs on each line in the csv file except the first (headers)
+    tail -n +2 "$DATA_FILE" | while IFS= read -r line; do 
+    
+        #Handle integer fields for SQL compatibility and remove quotes
+        line=$(echo "$line" | sed -r "s/'//g" | sed -r "s/\"//g" | sed "s/,/','/g") 
+        
+        echo "USE \`$DB_NAME\`; INSERT INTO \`$TABLE_NAME\` ($headers) VALUES ('$line');" | sudo mysql #insert all the format data
+    done
+    echo "Data import completed."
+}
+
 create_database
 create_table_from_csv
+import_csv_to_table
