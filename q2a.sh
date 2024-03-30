@@ -49,6 +49,8 @@ fi
 DB_NAME="FinalEx"
 TABLE_NAME="StudentScores"
 DATA_FILE="study_performance.csv"
+DB_USER="myuser"  # Replace with your desired username
+DB_PASSWORD="mypassword"  # Replace with your desired password
 
 #create database
 create_database() {
@@ -61,12 +63,23 @@ create_database() {
 
         if [ $? -eq 0 ]; then
             echo "Database created successfully."
+		
+	    #FIXED BUG: 	
+            #create a new user and grant privileges (allowing query execution without 'sudo' and without the need for entering a password manually in the HTTP server)
+            echo "Creating new user: $DB_USER"
+            echo "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';" | sudo mysql
+
+            echo "Granting privileges to $DB_USER on $DB_NAME..."
+            echo "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';" | sudo mysql
+            echo "FLUSH PRIVILEGES;" | sudo mysql
+
         else
             echo "Failed to create database."
             exit 1
         fi
     fi
 }
+
 
 #create table from CSV headers
 create_table_from_csv() {
@@ -82,13 +95,12 @@ create_table_from_csv() {
 
     IFS=',' read -ra ADDR <<< "$headers" #split by ',' headers' string into array - ADDR
     for col in "${ADDR[@]}"; do #run on ADDR elements (the column names)
-    
-        #replace by using sed -r (regex) all the spaces with underscores for SQL compatibility
-        col=$(echo $col | sed -r 's/\s/_/g') 
-        #wrap the column name with single quote for SQL compatibility
-        col=$(echo $col | sed -r 's/(.*)/`\1`/g') 
-        #concatenate all the formatted column names and their's type into column_definitions
-        column_definitions+="$col ${column_types[i]}, " 
+   
+        #using sed -r (regex) for SQL compatibility.
+	#remove double quotes, replace spaces with underscores, then wrap the result with single quotes.
+	
+        col=$(echo $col | sed -r 's/"//g' | sed -r 's/\s/_/g' | sed -r 's/(.*)/`\1`/g') #FIXED BUG: remove double quotes
+        column_definitions+="$col ${column_types[i]}, " #concatenate the col names into col definitions with the corresponding col type
         ((i++))
     done
 
@@ -104,23 +116,23 @@ create_table_from_csv() {
     fi
 }
 
-#import CSV data into the table
+#FIXED BUG: modified import_csv_to_table according to the changes we made in create_table_from_csv
 import_csv_to_table() {
-    #Format the headers for SQL - group with regex all the column names and wrap it with single quotes
-    local headers=$(head -1 "$DATA_FILE" | sed -r 's/([^,]+)/`\1`/g') 
     echo "Importing data from '$DATA_FILE' to table '$TABLE_NAME'..."
-    
-    #while loop that runs on each line in the csv file except the first (headers)
+
+    local headers=$(head -1 "$DATA_FILE" | sed -r 's/"//g' | sed -r 's/([^,]+)/`\1`/g') 
+
     tail -n +2 "$DATA_FILE" | while IFS= read -r line; do 
-    
-        #Handle integer fields for SQL compatibility and remove quotes
-        line=$(echo "$line" | sed -r "s/'//g" | sed -r "s/\"//g" | sed "s/,/','/g") 
-        
-        echo "USE \`$DB_NAME\`; INSERT INTO \`$TABLE_NAME\` ($headers) VALUES ('$line');" | sudo mysql #insert all the format data
+        line=$(echo "$line" | sed -r "s/'/''/g" | sed -r "s/\"//g" | sed "s/,/','/g") 
+        echo "USE \`$DB_NAME\`; INSERT INTO \`$TABLE_NAME\` ($headers) VALUES ('$line');" | sudo mysql
     done
+
     echo "Data import completed."
 }
 
 create_database
 create_table_from_csv
 import_csv_to_table
+
+
+
