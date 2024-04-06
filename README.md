@@ -11,9 +11,10 @@ This project involves setting up a MySQL database to store and analyze data from
 - **Data Analysis**: Execution of SQL queries.
 
 ## Installation and Setup
-1. **MySQL Installation and DB setup**: run q2a.sh
-2. **Start Server**: Execute `python3 q2.py` to run the Flask HTTP server (makesure you're giving permissions for 'query_template.sh', can done with "chmod +x query_template.sh").
-3. **POST & GET Requests**: call for a GET request for more instructions
+1. **Extract the Data File**: Before running the scripts, extract the data file from the study_performance.tar.gz archive. Use the following command in your terminal:
+2. **MySQL Installation and DB setup**: run q2a.sh
+3. **Start Server**: Execute `python3 q2.py` to run the Flask HTTP server (makesure you're giving permissions for 'query_template.sh', can done with "chmod +x query_template.sh").
+4. **POST & GET Requests**: call for a GET request for more instructions
 
 ## Example Queries - queries_requests.sh
 - Average scores by gender.
